@@ -1,0 +1,61 @@
+#!/bin/env ruby
+# Delete all branches that are behind the current branch.
+
+def branches
+  return @branches if @branches
+  @branches = []
+  `git branch`.each_line { |l| @branches << l.strip }
+
+  @branches
+end
+
+def current_branch
+  branches.select { |b| b[/^* /] }.first.sub('* ', '')
+end
+
+def behind_branches
+  return @behind_branches if @behind_branches
+
+  @behind_branches = []
+  branches.each do |br|
+    next if br[/^* /]
+    if `git diff #{current_branch}...#{br}`.empty?
+      @behind_branches << br
+    end
+  end
+
+  @behind_branches
+end
+
+def cli
+  if behind_branches.empty?
+    puts "No branches behing #{current_branch}, nothing to do."
+    exit
+  end
+
+  puts "The following branches are behind #{current_branch}:"
+  behind_branches.each { |b| puts " - #{b}" }
+
+  delete_all = false
+  keep_all = false
+  behind_branches.each do |b|
+    delete = false
+    keep = false
+    until delete || delete_all || keep || keep_all
+      puts ""
+      puts "Branch #{b} is behind #{current_branch}:"
+      print "Do you want to [d]elete it, [D]elete all, [k]eep it or [K]eep all? "
+      case STDIN.gets.chomp
+      when 'd' then delete = true
+      when 'D' then delete_all = true
+      when 'k' then keep = true
+      when 'K' then keep_all = true
+      end
+    end
+    if (delete_all || delete) && !(keep_all || keep)
+      system("git branch -D #{b}") # git outputs success / error messages
+    end
+  end
+end
+
+cli
